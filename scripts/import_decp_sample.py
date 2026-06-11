@@ -10,6 +10,7 @@ The MVP intentionally keeps a compact JSON sample for fast Vercel deployment.
 from __future__ import annotations
 
 import json
+import re
 import time
 import urllib.parse
 import urllib.request
@@ -40,22 +41,55 @@ def first_text(*values: Any) -> str:
     return ""
 
 
+def clean_text(value: Any) -> str:
+    text = first_text(value)
+    if not text:
+        return ""
+    text = re.sub(r"<[^>]+>", " ", text)
+    return re.sub(r"\s+", " ", text).strip()
+
+
 def entity_id(entity: Any) -> str:
     if isinstance(entity, dict):
         return first_text(entity.get("id"), entity.get("siret"), entity.get("siren"))
     return ""
 
 
-def titulaire_id(item: dict[str, Any]) -> str:
+def first_titulaire(item: dict[str, Any]) -> dict[str, Any]:
     titulaires = item.get("titulaires") or []
     if isinstance(titulaires, dict):
         titulaires = [titulaires]
     for wrapper in titulaires:
-        titulaire = wrapper.get("titulaire") if isinstance(wrapper, dict) else None
-        ident = entity_id(titulaire)
-        if ident:
-            return ident
-    return ""
+        if not isinstance(wrapper, dict):
+            continue
+        titulaire = wrapper.get("titulaire") if isinstance(wrapper.get("titulaire"), dict) else wrapper
+        if isinstance(titulaire, dict):
+            return titulaire
+    return {}
+
+
+def titulaire_id(item: dict[str, Any]) -> str:
+    return entity_id(first_titulaire(item))
+
+
+def titulaire_name(item: dict[str, Any]) -> str:
+    titulaire = first_titulaire(item)
+    return clean_text(
+        titulaire.get("denominationSociale")
+        or titulaire.get("nom")
+        or titulaire.get("raisonSociale")
+    ) if titulaire else ""
+
+
+def normalized_row_id(decp_id: str, supplier_id: str, row_index: int) -> str:
+    """Stable unique row identifier for frontend routing and future DB primary key.
+
+    DECP market ids are not unique in this resource: repeated rows may represent lots,
+    titulaires or updates. The original DECP id is kept separately in `decpId`.
+    """
+    base = re.sub(r"[^A-Za-z0-9_-]+", "-", clean_text(decp_id) or "decp").strip("-")
+    supplier = re.sub(r"[^A-Za-z0-9_-]+", "-", clean_text(supplier_id) or "unknown-supplier").strip("-")
+    return f"{base}-{row_index + 1:04d}-{supplier}"
 
 
 def location(item: dict[str, Any]) -> str:
@@ -117,11 +151,13 @@ def main() -> None:
         enrich_name(ident, cache)
 
     contracts = []
-    for item in rows:
+    missing = {"buyerId": 0, "supplierId": 0, "amount": 0, "location": 0, "cpv": 0}
+    for row_index, item in enumerate(rows):
         buyer_id = entity_id(item.get("acheteur"))
         supplier_id = titulaire_id(item)
         buyer = cache.get(buyer_id) or enrich_name(buyer_id, cache)
         supplier = cache.get(supplier_id) or enrich_name(supplier_id, cache)
+        supplier_source_name = titulaire_name(item)
         date = first_text(item.get("dateNotification"), item.get("datePublicationDonnees"))
         try:
             year = int(date[:4]) if date else None
@@ -133,12 +169,15 @@ def main() -> None:
                 amount = float(amount)
             except (TypeError, ValueError):
                 amount = None
-        contracts.append({
-            "id": first_text(item.get("id"), f"decp-{len(contracts)+1}"),
-            "title": first_text(item.get("objet"), "Marché sans objet renseigné"),
+        decp_id = first_text(item.get("id"), f"decp-{row_index + 1}")
+        contract = {
+            "id": normalized_row_id(decp_id, supplier_id, row_index),
+            "decpId": decp_id,
+            "sourceRowIndex": row_index,
+            "title": clean_text(item.get("objet")) or "Marché sans objet renseigné",
             "buyerName": buyer["name"],
             "buyerId": buyer_id,
-            "supplierName": supplier["name"],
+            "supplierName": supplier_source_name or supplier["name"],
             "supplierId": supplier_id,
             "amount": amount,
             "date": date,
@@ -149,13 +188,23 @@ def main() -> None:
             "sourceUrl": DECP_URL,
             "raw": {
                 "decpId": item.get("id"),
+                "sourceRowIndex": row_index,
+                "objet": item.get("objet"),
+                "montant": item.get("montant"),
+                "codeCPV": item.get("codeCPV"),
+                "procedure": item.get("procedure"),
                 "nature": item.get("nature"),
+                "dateNotification": item.get("dateNotification"),
                 "datePublicationDonnees": item.get("datePublicationDonnees"),
                 "acheteur": item.get("acheteur"),
                 "titulaires": item.get("titulaires"),
                 "lieuExecution": item.get("lieuExecution"),
             },
-        })
+        }
+        for field in missing:
+            if contract.get(field) in (None, ""):
+                missing[field] += 1
+        contracts.append(contract)
 
     payload = {
         "generatedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
@@ -164,13 +213,16 @@ def main() -> None:
             "datasetPage": DATASET_PAGE,
             "resourceUrl": DECP_URL,
             "sireneEnrichment": "https://recherche-entreprises.api.gouv.fr/",
-            "limitation": f"MVP sample of {len(contracts)} contracts from the January 2026 resource."
+            "limitation": f"MVP sample of {len(contracts)} contracts from the January 2026 resource.",
+            "normalization": "Each JSON row has a unique id for routing/DB loading; the original DECP market id is preserved as decpId.",
+            "missingFieldCounts": missing,
         },
         "contracts": contracts,
     }
     OUT_PATH.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"Imported {len(contracts)} contracts to {OUT_PATH}")
     print("Example queries: GROUPAMA, Lyon, assurance, 77983836600028")
+    print(f"Missing-field counts: {missing}")
 
 
 if __name__ == "__main__":

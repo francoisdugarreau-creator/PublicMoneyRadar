@@ -14,7 +14,7 @@ MVP web app for searching French public procurement contracts from open DECP dat
 
 - Vite + React + TypeScript
 - Static JSON dataset generated from public open data
-- Supabase Storage for hosting the generated dataset when credentials allow it
+- Supabase Storage for hosting the generated dataset in production
 - Vercel for deployment
 
 ## Local setup
@@ -34,9 +34,11 @@ Open http://localhost:5173 and try:
 - `Lyon`
 - `77983836600028`
 
+In local dev, the app defaults to `/data/contracts.json`, so `npm run import:data` immediately affects the local app. In production, the default is the public Supabase Storage JSON URL unless overridden with an env var.
+
 ## Environment variables
 
-Copy `.env.example` to `.env` if you want to override the data URL:
+Copy `.env.example` to `.env` only if you want to override the data URL:
 
 ```bash
 VITE_DATA_URL=/data/contracts.json
@@ -53,9 +55,18 @@ npm run import:data
 
 The script downloads a DECP JSON resource from data.gouv.fr, keeps a compact sample, enriches buyer/supplier names via the public Recherche Entreprises API, and writes `public/data/contracts.json`.
 
+Notes:
+
+- The raw downloaded file is cached under `data/raw/` and ignored by Git.
+- Enrichment uses public network calls and can degrade gracefully to identifiers if the API is unavailable.
+- DECP market IDs are not unique in the source resource. The import therefore generates a unique row `id` for routing/database loading and preserves the original market identifier as `decpId`.
+- `contracts.json.source.missingFieldCounts` documents missing core fields in the generated sample.
+
 ## Supabase
 
-A SQL schema is provided in `supabase/schema.sql` for a future table-backed version. In this MVP, the deployed app can run from the generated JSON file; when Supabase SQL admin is available, the same normalized records can be loaded into the `contracts` table.
+The working production demo reads `contracts.json` from Supabase Storage. A SQL schema is provided in `supabase/schema.sql` for a future table-backed version, but it was not applied during the MVP because Supabase SQL/admin access returned `403 error code: 1010`.
+
+When SQL/admin access is available, the normalized records can be loaded into the `contracts` table. The table primary key is the generated unique row `id`; the original DECP market id is stored separately as `decp_id`.
 
 ## Deployment
 

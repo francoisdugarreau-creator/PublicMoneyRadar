@@ -11,14 +11,14 @@
     "import:data": "python3 scripts/import_decp_sample.py"
   },
   "dependencies": {
-    "@vitejs/plugin-react": "latest",
-    "vite": "latest",
-    "typescript": "latest",
     "react": "latest",
     "react-dom": "latest",
     "lucide-react": "latest"
   },
   "devDependencies": {
+    "@vitejs/plugin-react": "latest",
+    "vite": "latest",
+    "typescript": "latest",
     "vitest": "latest",
     "jsdom": "latest",
     "@types/react": "latest",

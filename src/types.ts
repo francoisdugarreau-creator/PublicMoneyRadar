@@ -1,5 +1,7 @@
 export interface ContractRecord {
   id: string;
+  decpId: string;
+  sourceRowIndex: number;
   title: string;
   buyerName: string;
   buyerId: string;

@@ -3,6 +3,8 @@
 
 create table if not exists public.contracts (
   id text primary key,
+  decp_id text,
+  source_row_index integer,
   title text not null,
   buyer_name text not null,
   buyer_id text,
@@ -25,6 +27,7 @@ create index if not exists contracts_search_idx on public.contracts using gin (
 
 create index if not exists contracts_buyer_idx on public.contracts (buyer_id);
 create index if not exists contracts_supplier_idx on public.contracts (supplier_id);
+create index if not exists contracts_decp_id_idx on public.contracts (decp_id);
 create index if not exists contracts_year_idx on public.contracts (year);
 
 alter table public.contracts enable row level security;

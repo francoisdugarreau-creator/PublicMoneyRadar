@@ -5,6 +5,8 @@ import type { ContractRecord } from './types';
 const sample: ContractRecord[] = [
   {
     id: 'm1',
+    decpId: 'm1',
+    sourceRowIndex: 0,
     title: 'Maintenance de capteurs IoT',
     buyerName: 'Ville de Lyon',
     buyerId: '21690123100011',
@@ -21,6 +23,8 @@ const sample: ContractRecord[] = [
   },
   {
     id: 'm2',
+    decpId: 'm2',
+    sourceRowIndex: 1,
     title: 'Plateforme data énergie',
     buyerName: 'Métropole de Lyon',
     buyerId: '24690012300010',

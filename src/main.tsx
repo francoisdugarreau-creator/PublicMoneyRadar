@@ -13,6 +13,8 @@ interface DataPayload {
     resourceUrl: string;
     sireneEnrichment: string;
     limitation: string;
+    normalization?: string;
+    missingFieldCounts?: Record<string, number>;
   };
   contracts: ContractRecord[];
 }
@@ -28,7 +30,13 @@ const defaultQuery = new URLSearchParams(window.location.search).get('q') || 'as
 const SUPABASE_PUBLIC_DATA_URL = 'https://whfjhpzvfuaezpbthjtj.supabase.co/storage/v1/object/public/publicmoney-radar/contracts.json';
 
 function dataUrl(): string {
-  return import.meta.env.VITE_SUPABASE_PUBLIC_DATA_URL || import.meta.env.VITE_DATA_URL || SUPABASE_PUBLIC_DATA_URL;
+  if (import.meta.env.VITE_SUPABASE_PUBLIC_DATA_URL) return import.meta.env.VITE_SUPABASE_PUBLIC_DATA_URL;
+  if (import.meta.env.VITE_DATA_URL) return import.meta.env.VITE_DATA_URL;
+  return import.meta.env.DEV ? '/data/contracts.json' : SUPABASE_PUBLIC_DATA_URL;
+}
+
+function entityRouteId(id: string, name: string): string {
+  return id || name;
 }
 
 function parseRoute(): Route {
@@ -55,11 +63,11 @@ function StatCard({ label, value }: { label: string; value: React.ReactNode }) {
 function ContractList({ contracts }: { contracts: ContractRecord[] }) {
   if (!contracts.length) return <div className="empty">Aucun marché trouvé. Essaie “GROUPAMA”, “assurance”, “Lyon” ou un SIRET.</div>;
   return <div className="results">
-    {contracts.map(contract => <article className="card" key={`${contract.id}-${contract.supplierId}`}>
+    {contracts.map(contract => <article className="card" key={contract.id}>
       <button className="linklike title" onClick={() => go({ page: 'contract', id: contract.id })}>{contract.title}</button>
       <div className="meta">
-        <button className="chip" onClick={() => go({ page: 'buyer', id: contract.buyerId })}><Landmark size={14} /> {contract.buyerName}</button>
-        <button className="chip" onClick={() => go({ page: 'supplier', id: contract.supplierId })}><Building2 size={14} /> {contract.supplierName}</button>
+        <button className="chip" onClick={() => go({ page: 'buyer', id: entityRouteId(contract.buyerId, contract.buyerName) })}><Landmark size={14} /> {contract.buyerName}</button>
+        <button className="chip" onClick={() => go({ page: 'supplier', id: entityRouteId(contract.supplierId, contract.supplierName) })}><Building2 size={14} /> {contract.supplierName}</button>
       </div>
       <div className="row">
         <span>{formatEuro(contract.amount)}</span>
@@ -81,7 +89,7 @@ function Home({ data }: { data: DataPayload }) {
       <p>Recherche ultra simple dans un échantillon réel DECP : entreprise, acheteur public, mot-clé, SIREN/SIRET.</p>
       <div className="searchBox">
         <Search size={20} />
-        <input value={query} onChange={event => setQuery(event.target.value)} placeholder="Ex: GROUPAMA, assurance, Lyon, 77983836600028" autoFocus />
+        <input aria-label="Rechercher des marchés publics" value={query} onChange={event => setQuery(event.target.value)} placeholder="Ex: GROUPAMA, assurance, Lyon, 77983836600028" autoFocus />
       </div>
       <div className="stats">
         <StatCard label="Marchés importés" value={data.contracts.length} />
@@ -108,8 +116,10 @@ function ContractDetail({ data, id }: { data: DataPayload; id: string }) {
       <StatCard label="Lieu" value={contract.location || 'Non renseigné'} />
     </div>
     <dl className="facts">
-      <dt>Acheteur public</dt><dd><button className="linklike" onClick={() => go({ page: 'buyer', id: contract.buyerId })}>{contract.buyerName}</button> <small>{contract.buyerId}</small></dd>
-      <dt>Fournisseur / titulaire</dt><dd><button className="linklike" onClick={() => go({ page: 'supplier', id: contract.supplierId })}>{contract.supplierName}</button> <small>{contract.supplierId}</small></dd>
+      <dt>Identifiant ligne</dt><dd><code>{contract.id}</code></dd>
+      <dt>ID DECP original</dt><dd>{contract.decpId || 'Non renseigné'}</dd>
+      <dt>Acheteur public</dt><dd><button className="linklike" onClick={() => go({ page: 'buyer', id: entityRouteId(contract.buyerId, contract.buyerName) })}>{contract.buyerName}</button> <small>{contract.buyerId}</small></dd>
+      <dt>Fournisseur / titulaire</dt><dd><button className="linklike" onClick={() => go({ page: 'supplier', id: entityRouteId(contract.supplierId, contract.supplierName) })}>{contract.supplierName}</button> <small>{contract.supplierId}</small></dd>
       <dt>Procédure</dt><dd>{contract.procedure || 'Non renseignée'}</dd>
       <dt>Code CPV</dt><dd>{contract.cpv || 'Non renseigné'}</dd>
       <dt>Source</dt><dd><a href={contract.sourceUrl} target="_blank" rel="noreferrer">Fichier DECP source <ExternalLink size={14} /></a></dd>
