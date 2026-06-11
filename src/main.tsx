@@ -25,8 +25,10 @@ type Route =
 
 const defaultQuery = new URLSearchParams(window.location.search).get('q') || 'assurance';
 
+const SUPABASE_PUBLIC_DATA_URL = 'https://whfjhpzvfuaezpbthjtj.supabase.co/storage/v1/object/public/publicmoney-radar/contracts.json';
+
 function dataUrl(): string {
-  return import.meta.env.VITE_SUPABASE_PUBLIC_DATA_URL || import.meta.env.VITE_DATA_URL || '/data/contracts.json';
+  return import.meta.env.VITE_SUPABASE_PUBLIC_DATA_URL || import.meta.env.VITE_DATA_URL || SUPABASE_PUBLIC_DATA_URL;
 }
 
 function parseRoute(): Route {
