@@ -191,7 +191,7 @@ function App() {
   }, []);
 
   return <main>
-    <header className="top"><button className="brand" onClick={() => go({ page: 'home' })}>PublicMoney Radar</button><a href="/docs/data-sources.md">Sources</a></header>
+    <header className="top"><button className="brand" onClick={() => go({ page: 'home' })}>PublicMoney Radar</button><a href="https://github.com/francoisdugarreau-creator/PublicMoneyRadar/blob/main/docs/data-sources.md" target="_blank" rel="noreferrer">Sources</a></header>
     {error && <div className="error">{error}</div>}
     {!payload && !error && <div className="loading">Chargement des marchés publics…</div>}
     {payload && route.page === 'home' && <Home data={payload} />}
